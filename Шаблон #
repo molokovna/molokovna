@@ -1,0 +1,681 @@
+<Window x:Class="SportingGoodsApp.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Авторизация" Height="250" Width="350"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="80"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Логин:" VerticalAlignment="Center" Margin="5"/>
+        <TextBox x:Name="txtLogin" Grid.Row="0" Grid.Column="1" Margin="5"/>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Пароль:" VerticalAlignment="Center" Margin="5"/>
+        <PasswordBox x:Name="txtPassword" Grid.Row="1" Grid.Column="1" Margin="5"/>
+
+        <Button x:Name="btnLogin" Grid.Row="2" Grid.Column="1" Content="Войти" Width="100" HorizontalAlignment="Left" Margin="5" Click="BtnLogin_Click"/>
+        <Button x:Name="btnGuest" Grid.Row="3" Grid.Column="1" Content="Войти как гость" Width="120" HorizontalAlignment="Left" Margin="5" Click="BtnGuest_Click"/>
+    </Grid>
+</Window>
+
+using System;
+using System.Data.SqlClient;
+using System.Windows;
+
+namespace SportingGoodsApp
+{
+    public partial class LoginWindow : Window
+    {
+        string connString = @"Data Source=DEKO-PC;Initial Catalog=V2;Integrated Security=True;";
+
+        public LoginWindow()
+        {
+            InitializeComponent();
+        }
+
+        private void BtnLogin_Click(object sender, RoutedEventArgs e)
+        {
+            string login = txtLogin.Text.Trim();
+            string password = txtPassword.Password;
+
+            if (string.IsNullOrEmpty(login) || string.IsNullOrEmpty(password))
+            {
+                MessageBox.Show("Введите логин и пароль", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(connString))
+                {
+                    conn.Open();
+                    string sql = @"SELECT u.ID_Пользователя, u.ФИО, r.Название 
+                                   FROM Пользователи u
+                                   JOIN Роли r ON u.FK_Роль = r.ID_Роль
+                                   WHERE u.Логин = @login AND u.Пароль = @pass";
+                    SqlCommand cmd = new SqlCommand(sql, conn);
+                    cmd.Parameters.AddWithValue("@login", login);
+                    cmd.Parameters.AddWithValue("@pass", password);
+
+                    SqlDataReader reader = cmd.ExecuteReader();
+                    if (reader.Read())
+                    {
+                        int userId = reader.GetInt32(0);
+                        string fullName = reader.GetString(1);
+                        string roleName = reader.GetString(2);
+
+                        reader.Close();
+
+                        MainWindow main = new MainWindow(userId, fullName, roleName);
+                        main.Show();
+                        this.Close();
+                    }
+                    else
+                    {
+                        MessageBox.Show("Неверный логин или пароль", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка БД: " + ex.Message, "Критично", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void BtnGuest_Click(object sender, RoutedEventArgs e)
+        {
+            // Гость: userId = -1, ФИО = "Гость", роль = "Гость"
+            MainWindow main = new MainWindow(-1, "Гость", "Гость");
+            main.Show();
+            this.Close();
+        }
+    }
+}
+
+<Window x:Class="SportingGoodsApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Спортивные товары" Height="600" Width="1000"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="5">
+            <TextBlock x:Name="tbUserInfo" Text="Пользователь:" VerticalAlignment="Center" Margin="5"/>
+            <Button x:Name="btnLogout" Content="Выйти" Width="80" Click="BtnLogout_Click"/>
+        </StackPanel>
+
+        <WrapPanel x:Name="panelSearchFilter" Grid.Row="1" Margin="5" Visibility="Collapsed">
+            <TextBlock Text="Поиск:" VerticalAlignment="Center" Margin="5,0"/>
+            <TextBox x:Name="txtSearch" Width="200" Margin="5,0" TextChanged="TxtSearch_TextChanged"/>
+            <TextBlock Text="Поставщик:" VerticalAlignment="Center" Margin="15,0,5,0"/>
+            <ComboBox x:Name="cmbSupplier" Width="150" SelectionChanged="CmbSupplier_SelectionChanged"/>
+            <TextBlock Text="Сортировка по кол-ву:" VerticalAlignment="Center" Margin="15,0,5,0"/>
+            <ComboBox x:Name="cmbSort" Width="120" SelectionChanged="CmbSort_SelectionChanged">
+                <ComboBoxItem Content="Без сортировки" IsSelected="True"/>
+                <ComboBoxItem Content="По возрастанию"/>
+                <ComboBoxItem Content="По убыванию"/>
+            </ComboBox>
+        </WrapPanel>
+
+        <StackPanel x:Name="panelAdminButtons" Grid.Row="2" Orientation="Horizontal" Margin="5" Visibility="Collapsed">
+            <Button x:Name="btnAdd" Content="Добавить товар" Width="120" Margin="5" Click="BtnAdd_Click"/>
+            <Button x:Name="btnEdit" Content="Редактировать" Width="120" Margin="5" Click="BtnEdit_Click" IsEnabled="False"/>
+            <Button x:Name="btnDelete" Content="Удалить" Width="100" Margin="5" Click="BtnDelete_Click" IsEnabled="False"/>
+            <Button x:Name="btnOrders" Content="Заказы" Width="100" Margin="5" Click="BtnOrders_Click"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="icProducts">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" Margin="5"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border x:Name="cardBorder" BorderBrush="DarkGray" BorderThickness="1" CornerRadius="8" Margin="10" Padding="10" Width="550" Background="White" MouseLeftButtonUp="Card_MouseLeftButtonUp">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="100"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0" BorderBrush="LightGray" BorderThickness="1" CornerRadius="4" Margin="2" Padding="5" VerticalAlignment="Stretch">
+                                    <Image Source="{Binding ПутьКИзображению}" Width="120" Height="120" Stretch="Uniform" VerticalAlignment="Center"/>
+                                </Border>
+
+                                <Border Grid.Column="1" BorderBrush="LightGray" BorderThickness="1" CornerRadius="4" Margin="2" Padding="5" VerticalAlignment="Stretch">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Наименование}" FontWeight="Bold" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                                        <TextBlock Text="{Binding Описание}" TextWrapping="Wrap" Margin="0,5" FontSize="11" Foreground="Gray"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,5">
+                                            <TextBlock Text="Производитель:" FontWeight="Bold" Margin="0,0,5,0"/>
+                                            <TextBlock Text="{Binding Производитель}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,5">
+                                            <TextBlock x:Name="oldPriceBlock" Text="{Binding СтараяЦена}" TextDecorations="Strikethrough" Foreground="Red" Margin="0,0,10,0" Visibility="{Binding ПоказатьСтаруюЦену}"/>
+                                            <TextBlock Text="{Binding Цена}" Foreground="Black" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Grid.Column="2" BorderBrush="LightGray" BorderThickness="1" CornerRadius="4" Margin="2" Padding="5" VerticalAlignment="Stretch">
+                                    <TextBlock Text="{Binding КолНаСкладе}" FontWeight="Bold" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding КолНаСкладе}" Value="0">
+                                <Setter TargetName="cardBorder" Property="Background" Value="LightGray"/>
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</Window>
+
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+
+namespace SportingGoodsApp
+{
+    public partial class MainWindow : Window
+    {
+        private int currentUserId;
+        private string currentFullName;
+        private string currentRole;
+        private DataTable productsTable;
+        private string connString = @"Data Source=DEKO-PC;Initial Catalog=V2;Integrated Security=True;";
+        private Border selectedBorder = null;
+        private DataRowView selectedProduct = null;
+
+        public MainWindow()
+        {
+            InitializeComponent();
+        }
+
+        public MainWindow(int userId, string fullName, string role) : this()
+        {
+            currentUserId = userId;
+            currentFullName = fullName;
+            currentRole = role;
+
+            if (tbUserInfo != null)
+                tbUserInfo.Text = fullName;
+
+            Title = $"Спортивные товары - {fullName} ({role})";
+
+            if (panelSearchFilter != null)
+                panelSearchFilter.Visibility = (role == "Администратор" || role == "Менеджер") ? Visibility.Visible : Visibility.Collapsed;
+
+            if (panelAdminButtons != null)
+                panelAdminButtons.Visibility = (role == "Администратор") ? Visibility.Visible : Visibility.Collapsed;
+
+            if (role == "Администратор" || role == "Менеджер")
+                LoadSuppliers();
+
+            LoadProducts();
+        }
+
+        private void LoadSuppliers()
+        {
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(connString))
+                {
+                    conn.Open();
+                    string sql = "SELECT ID_Поставщика, Название FROM Поставщики";
+                    SqlDataAdapter da = new SqlDataAdapter(sql, conn);
+                    DataTable dt = new DataTable();
+                    da.Fill(dt);
+
+                    DataTable newDt = dt.Clone();
+                    newDt.Rows.Add(0, "Все поставщики");
+                    foreach (DataRow row in dt.Rows)
+                        newDt.Rows.Add(row.ItemArray);
+
+                    cmbSupplier.ItemsSource = newDt.DefaultView;
+                    cmbSupplier.DisplayMemberPath = "Название";
+                    cmbSupplier.SelectedValuePath = "ID_Поставщика";
+                    cmbSupplier.SelectedIndex = 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка загрузки поставщиков: " + ex.Message);
+            }
+        }
+
+        private void LoadProducts()
+        {
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(connString))
+                {
+                    conn.Open();
+                    string sql = @"
+                        SELECT DISTINCT 
+                            p.ID_Товара,
+                            p.Артикул, 
+                            p.Наименование, 
+                            p.ЕдиницаИзмерения,
+                            p.Стоимость AS БазоваяЦена,
+                            p.ДействующаяСкидка,
+                            p.КолНаСкладе,
+                            p.Описание,
+                            m.ID_Производители AS ID_Производитель,
+                            m.Название AS Производитель,
+                            s.ID_Поставщика AS ID_Поставщик,
+                            s.Название AS Поставщик,
+                            cat.ID_Категории AS ID_Категория,
+                            cat.Название AS Категория,
+                            p.ПутьКИзображению
+                        FROM Товары p
+                        LEFT JOIN Производители m ON p.FK_Производитель = m.ID_Производители
+                        LEFT JOIN Поставщики s ON p.FK_Поставщик = s.ID_Поставщика
+                        LEFT JOIN Категории cat ON p.FK_Категория = cat.ID_Категории
+                        WHERE 1=1";
+
+                    if (currentRole == "Администратор" || currentRole == "Менеджер")
+                    {
+                        if (txtSearch != null && !string.IsNullOrWhiteSpace(txtSearch.Text))
+                        {
+                            string search = txtSearch.Text.Replace("'", "''");
+                            sql += $" AND (p.Наименование LIKE '%{search}%' OR p.Описание LIKE '%{search}%' OR m.Название LIKE '%{search}%' OR s.Название LIKE '%{search}%')";
+                        }
+
+                        if (cmbSupplier != null && cmbSupplier.SelectedValue != null && cmbSupplier.SelectedValue.ToString() != "0")
+                        {
+                            sql += $" AND s.ID_Поставщика = {cmbSupplier.SelectedValue}";
+                        }
+
+                        if (cmbSort != null && cmbSort.SelectedIndex == 1)
+                            sql += " ORDER BY p.КолНаСкладе ASC";
+                        else if (cmbSort != null && cmbSort.SelectedIndex == 2)
+                            sql += " ORDER BY p.КолНаСкладе DESC";
+                    }
+
+                    SqlDataAdapter da = new SqlDataAdapter(sql, conn);
+                    productsTable = new DataTable();
+                    da.Fill(productsTable);
+
+                    if (!productsTable.Columns.Contains("Цена"))
+                        productsTable.Columns.Add("Цена", typeof(string));
+                    if (!productsTable.Columns.Contains("СтараяЦена"))
+                        productsTable.Columns.Add("СтараяЦена", typeof(string));
+                    if (!productsTable.Columns.Contains("ПоказатьСтаруюЦену"))
+                        productsTable.Columns.Add("ПоказатьСтаруюЦену", typeof(Visibility));
+
+                    foreach (DataRow row in productsTable.Rows)
+                    {
+                        decimal basePrice = Convert.ToDecimal(row["БазоваяЦена"]);
+                        int discount = Convert.ToInt32(row["ДействующаяСкидка"]);
+                        if (discount > 0)
+                        {
+                            decimal finalPrice = basePrice * (100 - discount) / 100;
+                            row["СтараяЦена"] = basePrice.ToString("F2");
+                            row["Цена"] = finalPrice.ToString("F2");
+                            row["ПоказатьСтаруюЦену"] = Visibility.Visible;
+                        }
+                        else
+                        {
+                            row["СтараяЦена"] = DBNull.Value;
+                            row["Цена"] = basePrice.ToString("F2");
+                            row["ПоказатьСтаруюЦену"] = Visibility.Collapsed;
+                        }
+
+                        row["ПутьКИзображению"] = "Resources/picture.png";
+                    }
+
+                    if (icProducts != null)
+                    {
+                        icProducts.ItemsSource = null;
+                        icProducts.ItemsSource = productsTable.DefaultView;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка загрузки товаров: " + ex.Message);
+            }
+        }
+
+        // Обработчик клика по карточке – выделение рамкой
+        private void Card_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            Border border = sender as Border;
+            if (border == null) return;
+
+            if (selectedBorder != null)
+            {
+                selectedBorder.BorderBrush = Brushes.DarkGray;
+                selectedBorder.BorderThickness = new Thickness(1);
+            }
+
+            selectedBorder = border;
+            selectedBorder.BorderBrush = Brushes.Blue;
+            selectedBorder.BorderThickness = new Thickness(3);
+
+            selectedProduct = border.DataContext as DataRowView;
+
+            if (currentRole == "Администратор")
+            {
+                btnEdit.IsEnabled = true;
+                btnDelete.IsEnabled = true;
+            }
+        }
+
+        private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e) => LoadProducts();
+        private void CmbSupplier_SelectionChanged(object sender, SelectionChangedEventArgs e) => LoadProducts();
+        private void CmbSort_SelectionChanged(object sender, SelectionChangedEventArgs e) => LoadProducts();
+
+        private void BtnLogout_Click(object sender, RoutedEventArgs e)
+        {
+            LoginWindow login = new LoginWindow();
+            login.Show();
+            this.Close();
+        }
+
+        private void BtnAdd_Click(object sender, RoutedEventArgs e)
+        {
+            ProductEditWindow editWindow = new ProductEditWindow(connString);
+            if (editWindow.ShowDialog() == true)
+                LoadProducts();
+        }
+
+        private void BtnEdit_Click(object sender, RoutedEventArgs e)
+        {
+            if (selectedProduct == null) return;
+            int productId = Convert.ToInt32(selectedProduct["ID_Товара"]);
+            ProductEditWindow editWindow = new ProductEditWindow(connString, productId);
+            if (editWindow.ShowDialog() == true)
+                LoadProducts();
+        }
+
+        private void BtnDelete_Click(object sender, RoutedEventArgs e)
+        {
+            if (selectedProduct == null) return;
+            int productId = Convert.ToInt32(selectedProduct["ID_Товара"]);
+            string productName = selectedProduct["Наименование"].ToString();
+
+            if (MessageBox.Show($"Удалить товар '{productName}'?", "Подтверждение", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(connString))
+                {
+                    conn.Open();
+                    SqlCommand cmd = new SqlCommand("SELECT COUNT(*) FROM СоставЗаказа WHERE FK_Товар = @id", conn);
+                    cmd.Parameters.AddWithValue("@id", productId);
+                    int count = (int)cmd.ExecuteScalar();
+                    if (count > 0)
+                    {
+                        MessageBox.Show("Нельзя удалить товар, который присутствует в заказах.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+
+                    cmd = new SqlCommand("DELETE FROM Товары WHERE ID_Товара = @id", conn);
+                    cmd.Parameters.AddWithValue("@id", productId);
+                    cmd.ExecuteNonQuery();
+
+                    LoadProducts();
+                    selectedBorder = null;
+                    selectedProduct = null;
+                    btnEdit.IsEnabled = false;
+                    btnDelete.IsEnabled = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка удаления: " + ex.Message);
+            }
+        }
+
+        private void BtnOrders_Click(object sender, RoutedEventArgs e) => MessageBox.Show("Заказы");
+    }
+}
+
+<Window x:Class="SportingGoodsApp.ProductEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Редактирование товара" Height="550" Width="500" WindowStartupLocation="CenterOwner">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="120"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <Image Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" x:Name="imgProduct" Width="100" Height="100" Stretch="Uniform" Margin="5"/>
+        <Button Grid.Row="0" Grid.Column="1" Content="Загрузить фото" Width="120" Height="25" Click="LoadImage_Click" Margin="5"/>
+        <TextBlock Grid.Row="1" Grid.Column="1" Text="(макс. 300x200)" FontSize="10" Foreground="Gray" Margin="5,0"/>
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Наименование:" VerticalAlignment="Center" Margin="5"/>
+        <TextBox x:Name="txtName" Grid.Row="2" Grid.Column="1" Margin="5"/>
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Описание:" VerticalAlignment="Center" Margin="5"/>
+        <TextBox x:Name="txtDescription" Grid.Row="3" Grid.Column="1" Margin="5" Height="60" TextWrapping="Wrap"/>
+
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="Производитель:" VerticalAlignment="Center" Margin="5"/>
+        <ComboBox x:Name="cmbManufacturer" Grid.Row="4" Grid.Column="1" Margin="5" DisplayMemberPath="Название" SelectedValuePath="ID_Производители"/>
+
+        <TextBlock Grid.Row="5" Grid.Column="0" Text="Поставщик:" VerticalAlignment="Center" Margin="5"/>
+        <ComboBox x:Name="cmbSupplier" Grid.Row="5" Grid.Column="1" Margin="5" DisplayMemberPath="Название" SelectedValuePath="ID_Поставщика"/>
+
+        <TextBlock Grid.Row="6" Grid.Column="0" Text="Цена:" VerticalAlignment="Center" Margin="5"/>
+        <TextBox x:Name="txtPrice" Grid.Row="6" Grid.Column="1" Margin="5"/>
+
+        <TextBlock Grid.Row="7" Grid.Column="0" Text="Единица измерения:" VerticalAlignment="Center" Margin="5"/>
+        <TextBox x:Name="txtUnit" Grid.Row="7" Grid.Column="1" Margin="5"/>
+
+        <TextBlock Grid.Row="8" Grid.Column="0" Text="Количество на складе:" VerticalAlignment="Center" Margin="5"/>
+        <TextBox x:Name="txtStock" Grid.Row="8" Grid.Column="1" Margin="5"/>
+
+        <TextBlock Grid.Row="9" Grid.Column="0" Text="Скидка (%):" VerticalAlignment="Center" Margin="5"/>
+        <TextBox x:Name="txtDiscount" Grid.Row="9" Grid.Column="1" Margin="5"/>
+
+        <StackPanel Grid.Row="10" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="5">
+            <Button x:Name="btnSave" Content="Сохранить" Width="80" Margin="5" Click="BtnSave_Click"/>
+            <Button x:Name="btnCancel" Content="Отмена" Width="80" Margin="5" Click="BtnCancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
+
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.IO;
+using System.Windows;
+using System.Windows.Media.Imaging;
+using Microsoft.Win32;
+
+namespace SportingGoodsApp
+{
+    public partial class ProductEditWindow : Window
+    {
+        private string connString;
+        private int? productId = null;
+        private string imagePath = null;
+        private string imageFileName = null;
+
+        public ProductEditWindow(string connString, int? productId = null)
+        {
+            InitializeComponent();
+            this.connString = connString;
+            this.productId = productId;
+
+            LoadComboBoxes();
+            if (productId.HasValue)
+                LoadProductData();
+        }
+
+        private void LoadComboBoxes()
+        {
+            using (SqlConnection conn = new SqlConnection(connString))
+            {
+                conn.Open();
+                SqlDataAdapter da = new SqlDataAdapter("SELECT ID_Производители, Название FROM Производители", conn);
+                DataTable dt = new DataTable();
+                da.Fill(dt);
+                cmbManufacturer.ItemsSource = dt.DefaultView;
+
+                da = new SqlDataAdapter("SELECT ID_Поставщика, Название FROM Поставщики", conn);
+                dt = new DataTable();
+                da.Fill(dt);
+                cmbSupplier.ItemsSource = dt.DefaultView;
+            }
+        }
+
+        private void LoadProductData()
+        {
+            using (SqlConnection conn = new SqlConnection(connString))
+            {
+                conn.Open();
+                string sql = "SELECT Наименование, Описание, FK_Производитель, FK_Поставщик, Стоимость, ЕдиницаИзмерения, КолНаСкладе, ДействующаяСкидка, ПутьКИзображению FROM Товары WHERE ID_Товара = @id";
+                SqlCommand cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@id", productId.Value);
+                SqlDataReader reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    txtName.Text = reader["Наименование"].ToString();
+                    txtDescription.Text = reader["Описание"].ToString();
+                    cmbManufacturer.SelectedValue = reader["FK_Производитель"];
+                    cmbSupplier.SelectedValue = reader["FK_Поставщик"];
+                    txtPrice.Text = reader["Стоимость"].ToString();
+                    txtUnit.Text = reader["ЕдиницаИзмерения"].ToString();
+                    txtStock.Text = reader["КолНаСкладе"].ToString();
+                    txtDiscount.Text = reader["ДействующаяСкидка"].ToString();
+                    string img = reader["ПутьКИзображению"].ToString();
+                    if (!string.IsNullOrEmpty(img) && File.Exists(img))
+                    {
+                        imagePath = img;
+                        imgProduct.Source = new BitmapImage(new Uri(img, UriKind.RelativeOrAbsolute));
+                    }
+                }
+                reader.Close();
+            }
+        }
+
+        private void LoadImage_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog ofd = new OpenFileDialog();
+            ofd.Filter = "Image files|*.jpg;*.jpeg;*.png;*.bmp";
+            if (ofd.ShowDialog() == true)
+            {
+                string destDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Images");
+                if (!Directory.Exists(destDir))
+                    Directory.CreateDirectory(destDir);
+                string destFile = Path.Combine(destDir, Guid.NewGuid().ToString() + Path.GetExtension(ofd.FileName));
+                File.Copy(ofd.FileName, destFile, true);
+                imagePath = destFile;
+                imgProduct.Source = new BitmapImage(new Uri(destFile));
+            }
+        }
+
+        private void BtnSave_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(txtName.Text))
+            {
+                MessageBox.Show("Введите наименование");
+                return;
+            }
+            if (!decimal.TryParse(txtPrice.Text, out decimal price) || price < 0)
+            {
+                MessageBox.Show("Цена должна быть числом >=0");
+                return;
+            }
+            if (!int.TryParse(txtStock.Text, out int stock) || stock < 0)
+            {
+                MessageBox.Show("Количество должно быть целым >=0");
+                return;
+            }
+            if (!int.TryParse(txtDiscount.Text, out int discount) || discount < 0 || discount > 100)
+            {
+                MessageBox.Show("Скидка от 0 до 100");
+                return;
+            }
+
+            using (SqlConnection conn = new SqlConnection(connString))
+            {
+                conn.Open();
+                SqlCommand cmd;
+                if (productId.HasValue)
+                {
+                    string sql = @"UPDATE Товары SET 
+                                    Наименование = @name,
+                                    Описание = @desc,
+                                    FK_Производитель = @manuf,
+                                    FK_Поставщик = @supp,
+                                    Стоимость = @price,
+                                    ЕдиницаИзмерения = @unit,
+                                    КолНаСкладе = @stock,
+                                    ДействующаяСкидка = @disc,
+                                    ПутьКИзображению = @img
+                                  WHERE ID_Товара = @id";
+                    cmd = new SqlCommand(sql, conn);
+                    cmd.Parameters.AddWithValue("@id", productId.Value);
+                }
+                else
+                {
+                    string sql = @"INSERT INTO Товары (Наименование, Описание, FK_Производитель, FK_Поставщик, Стоимость, ЕдиницаИзмерения, КолНаСкладе, ДействующаяСкидка, ПутьКИзображению, Артикул) 
+                                   VALUES (@name, @desc, @manuf, @supp, @price, @unit, @stock, @disc, @img, @art)";
+                    cmd = new SqlCommand(sql, conn);
+                    cmd.Parameters.AddWithValue("@art", Guid.NewGuid().ToString().Substring(0, 8));
+                }
+                cmd.Parameters.AddWithValue("@name", txtName.Text);
+                cmd.Parameters.AddWithValue("@desc", txtDescription.Text);
+                cmd.Parameters.AddWithValue("@manuf", cmbManufacturer.SelectedValue ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@supp", cmbSupplier.SelectedValue ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@price", price);
+                cmd.Parameters.AddWithValue("@unit", txtUnit.Text);
+                cmd.Parameters.AddWithValue("@stock", stock);
+                cmd.Parameters.AddWithValue("@disc", discount);
+                cmd.Parameters.AddWithValue("@img", imagePath ?? (object)DBNull.Value);
+                cmd.ExecuteNonQuery();
+            }
+            DialogResult = true;
+            Close();
+        }
+
+        private void BtnCancel_Click(object sender, RoutedEventArgs e)
+        {
+            DialogResult = false;
+            Close();
+        }
+    }
+}
