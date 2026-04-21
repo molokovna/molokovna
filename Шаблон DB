@@ -1,0 +1,71 @@
+CREATE TABLE Roles(
+	RoleID INT PRIMARY KEY IDENTITY(1,1),
+	Name NVARCHAR(50)
+);
+
+CREATE TABLE Users(
+	UserID INT PRIMARY KEY IDENTITY(1,1),
+	FullName NVARCHAR(50),
+	Login NVARCHAR(50),
+	Password NVARCHAR(50),
+	RoleID INT FOREIGN KEY REFERENCES Roles(RoleID)
+);
+
+CREATE TABLE PickupPoints(
+	PickupPointID INT PRIMARY KEY IDENTITY(1,1),
+	Address NVARCHAR(99)
+);
+
+CREATE TABLE Manufacturers(
+	ManufacturerID INT PRIMARY KEY IDENTITY(1,1),
+	Name NVARCHAR(99)
+);
+
+CREATE TABLE OrderStatuses(
+	StatusID INT PRIMARY KEY IDENTITY(1,1),
+	Status NVARCHAR(99)
+);
+
+CREATE TABLE Suppliers(
+	SupplierID INT PRIMARY KEY IDENTITY(1,1),
+	Name NVARCHAR(99)
+);
+
+CREATE TABLE Categories(
+	CategoryID INT PRIMARY KEY IDENTITY(1,1),
+	Name NVARCHAR(99)
+);
+
+CREATE TABLE Products(
+	ProductID INT PRIMARY KEY IDENTITY(1,1),
+	Article NVARCHAR(20),
+	Name NVARCHAR(200),
+	UnitOfMeasurement NVARCHAR(20),
+	Cost DECIMAL(10,2),
+	MaxDiscount INT,
+	CurrentDiscount INT,
+	StockQuantity INT,
+	Description NVARCHAR(MAX),
+	ImagePath NVARCHAR(500),
+	ManufacturerID INT FOREIGN KEY REFERENCES Manufacturers(ManufacturerID),
+	SupplierID INT FOREIGN KEY REFERENCES Suppliers(SupplierID),
+	CategoryID INT FOREIGN KEY REFERENCES Categories(CategoryID)
+);
+
+CREATE TABLE Orders(
+	OrderID INT PRIMARY KEY IDENTITY(1,1),
+	OrderNumber INT,
+	OrderDate DATE,
+	DeliveryDate DATE,
+	PickupCode NVARCHAR(50),
+	PickupPointID INT FOREIGN KEY REFERENCES PickupPoints(PickupPointID),
+	CustomerID INT FOREIGN KEY REFERENCES Users(UserID),
+	StatusID INT FOREIGN KEY REFERENCES OrderStatuses(StatusID)
+);
+
+CREATE TABLE OrderItems(
+	RecordID INT PRIMARY KEY IDENTITY(1,1),
+	Quantity INT,
+	OrderID INT FOREIGN KEY REFERENCES Orders(OrderID),
+	ProductID INT FOREIGN KEY REFERENCES Products(ProductID)
+);
