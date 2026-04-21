@@ -1,0 +1,28 @@
+﻿<Window x:Class="SportingGoodsApp.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Авторизация" Height="250" Width="350"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="80"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Логин:" VerticalAlignment="Center" Margin="5"/>
+        <TextBox x:Name="txtLogin" Grid.Row="0" Grid.Column="1" Margin="5"/>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Пароль:" VerticalAlignment="Center" Margin="5"/>
+        <PasswordBox x:Name="txtPassword" Grid.Row="1" Grid.Column="1" Margin="5"/>
+
+        <Button x:Name="btnLogin" Grid.Row="2" Grid.Column="1" Content="Войти" Width="100" HorizontalAlignment="Left" Margin="5" Click="BtnLogin_Click"/>
+        <Button x:Name="btnGuest" Grid.Row="3" Grid.Column="1" Content="Войти как гость" Width="120" HorizontalAlignment="Left" Margin="5" Click="BtnGuest_Click"/>
+    </Grid>
+</Window>
